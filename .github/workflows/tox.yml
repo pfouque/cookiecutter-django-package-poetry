@@ -1,4 +1,4 @@
-name: Python / Django
+name: Python / Django (with tox)
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toxenv: [fmt,lint,mypy]
+        toxenv: [fmt, lint, mypy]
     env:
       TOXENV: ${{ matrix.toxenv }}
 
@@ -37,8 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.10"]
-        django: [32,40,41,main]
+        python: ["3.8", "3.9", "3.10"]
+        django: [32, 40, 41, main]
 
     env:
       TOXENV: py${{ matrix.python }}-django${{ matrix.django }}

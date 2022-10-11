@@ -1,0 +1,144 @@
+name: Python / Django (with GHA)
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  format:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      - name: cache poetry install
+        uses: actions/cache@v2
+        with:
+          path: ~/.local
+          key: poetry-1.2.1-0
+
+      - uses: snok/install-poetry@v1
+        with:
+          version: 1.2.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: cache deps
+        id: cache-deps
+        uses: actions/cache@v2
+        with:
+          path: .venv
+          key: pydeps-${{ hashFiles('**/poetry.lock') }}-0
+
+      # `--no-root` means "install all dependencies but not the project itself"
+      - run: poetry install --no-interaction
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Activate virtual env
+        run: source .venv/bin/activate
+
+      - name: Django system checks and missing migrations
+        run: |
+          python manage.py check --fail-level WARNING
+          python manage.py makemigrations --dry-run --check --verbosity 3
+
+      - name: Python source code formatting (isort, black)
+        run: |
+          isort --check-only my_app
+          black --check my_app
+
+      - name: Python source code linting (flake8, bandit, pydocstyle)
+        run: |
+          flake8 my_app
+
+      - name: Python source code type hints (mypy)
+        run: |
+          mypy my_app
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Django 3.2
+          # - django-version: "^3.2.0"
+          #   python-version: "3.6"
+          # - django-version: "^3.2.0"
+          #   python-version: "3.7"
+          - django-version: "^3.2.0"
+            python-version: "3.8"
+          - django-version: "^3.2.0"
+            python-version: "3.9"
+          - django-version: "^3.2.0"
+            python-version: "3.10"
+          # Django 4.0
+          - django-version: "^4.0.0"
+            python-version: "3.8"
+          - django-version: "^4.0.0"
+            python-version: "3.9"
+          - django-version: "^4.0.0"
+            python-version: "3.10"
+          # Django 4.1
+          - django-version: "^4.0.0"
+            python-version: "3.8"
+          - django-version: "^4.0.0"
+            python-version: "3.9"
+          - django-version: "^4.0.0"
+            python-version: "3.10"
+          # Django main
+          # djangomain: https://github.com/django/django/archive/main.tar.gz
+          # - django-version: "^main"
+          #   python-version: "3.8"
+          # - django-version: "^main"
+          #   python-version: "3.9"
+          # - django-version: "^main"
+          #   python-version: "3.10"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: cache poetry install
+        uses: actions/cache@v2
+        with:
+          path: ~/.local
+          key: poetry-1.2.1-0
+
+      - uses: snok/install-poetry@v1
+        with:
+          version: 1.2.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: cache deps
+        id: cache-deps
+        uses: actions/cache@v2
+        with:
+          path: .venv
+          key: pydeps-${{ matrix.python-version }}-${{ matrix.django-version }}-${{ hashFiles('**/poetry.lock') }}-0
+
+      # `--no-root` means "install all dependencies but not the project itself"
+      - run: poetry install --no-interaction --no-root
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      # Now install _your_ project. This isn't necessary for many types of projects -- particularly
+      # things like Django apps don't need this. But it's a good idea since it fully-exercises the
+      # pyproject.toml and makes that if you add things like console-scripts at some point that
+      # they'll be installed and working.
+      # - run: poetry install --no-interaction
+
+      - name: Run "django@^${{ matrix.django-version }}"
+        run: poetry add --no-interaction django@${{ matrix.django-version }}
+
+      # And finally run tests. I'm using pytest and all my pytest config is in my `pyproject.toml`
+      # so this line is super-simple. But it could be as complex as you need.
+      - run: poetry run pytest
